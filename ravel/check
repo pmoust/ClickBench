@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+TENANT=${RAVEL_TENANT:-clickbench}
+
+curl -sSf -X POST \
+    -H 'Content-Type: application/json' \
+    -H "x-ravel-tenant: $TENANT" \
+    --data-binary '{"query":"SELECT 1","start":0,"end":4102444800}' \
+    'http://127.0.0.1:9080/api/v1/sql' >/dev/null

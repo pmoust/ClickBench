@@ -1,0 +1,31 @@
+#!/bin/bash
+# Ravel keeps every durable byte in object storage, so the VM's local disk
+# footprint is not the data size. This sums the bytes stored under this
+# tenant's own prefix in the bucket, which is the tenant's whole durable
+# footprint: data objects, commit records, manifests and catalog snapshots.
+set -eu
+
+TENANT=${RAVEL_TENANT:-clickbench}
+
+: "${RAVEL_S3_BUCKET:?set RAVEL_S3_BUCKET}"
+: "${RAVEL_S3_REGION:?set RAVEL_S3_REGION}"
+export RAVEL_S3_BUCKET RAVEL_S3_REGION RAVEL_S3_ACCESS_KEY RAVEL_S3_SECRET_KEY
+export RAVEL_S3_ACCESS_KEY_ID="$RAVEL_S3_ACCESS_KEY"
+export RAVEL_S3_SECRET_ACCESS_KEY="$RAVEL_S3_SECRET_KEY"
+
+# The tenant id is hashed under the bucket's pinned scheme, so the prefix is
+# not derivable from the id alone; ask the catalog for it.
+hash=$(./ravel/target/release/ravel-cli --store s3 catalog inspect \
+    --tenant "$TENANT" --signal logs 2>/dev/null \
+    | grep -oE 'tenant_hash: [0-9a-f]+' | head -1 | awk '{print $2}')
+
+if [ -z "$hash" ]; then
+    echo "data-size: could not resolve the tenant hash for '$TENANT'" >&2
+    exit 1
+fi
+
+AWS_ACCESS_KEY_ID="${RAVEL_S3_ACCESS_KEY}" \
+AWS_SECRET_ACCESS_KEY="${RAVEL_S3_SECRET_KEY}" \
+AWS_DEFAULT_REGION="${RAVEL_S3_REGION}" \
+    aws s3 ls --summarize --recursive "s3://${RAVEL_S3_BUCKET}/t/${hash}/" \
+    | awk '/Total Size:/ { print $3 }'

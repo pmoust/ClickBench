@@ -1,0 +1,61 @@
+#!/bin/bash
+set -eu
+
+# Ravel is built from source at a pinned commit. Override with RAVEL_REF.
+RAVEL_REF=${RAVEL_REF:-main}
+RAVEL_REPO=${RAVEL_REPO:-https://github.com/NOFireAI/ravel.git}
+
+# ClickBench standardises on Ubuntu, so apt is the primary path; the dnf branch
+# is here so the entry is also runnable on the Amazon Linux images some of these
+# VMs ship with, rather than failing at the first line.
+if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update -qq
+    sudo apt-get install -y --no-install-recommends \
+        git build-essential pkg-config libssl-dev protobuf-compiler jq curl awscli
+elif command -v dnf >/dev/null 2>&1; then
+    # curl is deliberately absent: Amazon Linux ships curl-minimal, which
+    # provides the binary and conflicts with the full curl package.
+    sudo dnf install -y -q \
+        git gcc gcc-c++ make pkgconfig openssl-devel protobuf-compiler jq awscli
+else
+    echo "install: no supported package manager (apt-get or dnf)" >&2
+    exit 1
+fi
+
+# Test that cargo RUNS, not merely that it is on PATH: a rustup shim with no
+# default toolchain satisfies `command -v` and then fails on first use.
+if ! cargo --version >/dev/null 2>&1; then
+    if command -v rustup >/dev/null 2>&1; then
+        rustup default stable
+    else
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+    fi
+fi
+# shellcheck disable=SC1091
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+cargo --version
+
+if [ ! -d ravel ]; then
+    git clone --filter=blob:none "$RAVEL_REPO" ravel
+fi
+git -C ravel fetch origin --quiet
+git -C ravel checkout -q --detach "$RAVEL_REF"
+git -C ravel rev-parse HEAD > ravel-commit.txt
+
+# The SQL surface sits behind a cargo feature that is off by default.
+cargo build --manifest-path ravel/Cargo.toml --release -p ravel-server --features sql
+cargo build --manifest-path ravel/Cargo.toml --release -p ravel-cli
+
+# One-time bucket provisioning (ADR-0050 section 6): the server refuses to start
+# against a store that has never been qualified. This is deliberately here and
+# not in ./load, because it is setup for the bucket rather than work that loads
+# the dataset, and putting it in ./load would count it inside the measured load
+# window.
+: "${RAVEL_S3_BUCKET:?set RAVEL_S3_BUCKET (see README.md)}"
+: "${RAVEL_S3_REGION:?set RAVEL_S3_REGION}"
+: "${RAVEL_S3_ACCESS_KEY:?set RAVEL_S3_ACCESS_KEY}"
+: "${RAVEL_S3_SECRET_KEY:?set RAVEL_S3_SECRET_KEY}"
+export RAVEL_S3_BUCKET RAVEL_S3_REGION RAVEL_S3_ACCESS_KEY RAVEL_S3_SECRET_KEY
+export RAVEL_S3_ACCESS_KEY_ID="$RAVEL_S3_ACCESS_KEY"
+export RAVEL_S3_SECRET_ACCESS_KEY="$RAVEL_S3_SECRET_KEY"
+./ravel/target/release/ravel-cli --store s3 store qualify

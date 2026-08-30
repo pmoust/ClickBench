@@ -1,0 +1,57 @@
+#!/bin/bash
+set -eu
+
+TENANT=${RAVEL_TENANT:-clickbench}
+SHARDS=${RAVEL_SHARDS:-8}
+
+: "${RAVEL_S3_BUCKET:?set RAVEL_S3_BUCKET (see README.md)}"
+: "${RAVEL_S3_REGION:?set RAVEL_S3_REGION}"
+: "${RAVEL_S3_ACCESS_KEY:?set RAVEL_S3_ACCESS_KEY}"
+: "${RAVEL_S3_SECRET_KEY:?set RAVEL_S3_SECRET_KEY}"
+export RAVEL_S3_BUCKET RAVEL_S3_REGION RAVEL_S3_ACCESS_KEY RAVEL_S3_SECRET_KEY
+export RAVEL_S3_ACCESS_KEY_ID="$RAVEL_S3_ACCESS_KEY"
+export RAVEL_S3_SECRET_ACCESS_KEY="$RAVEL_S3_SECRET_KEY"
+
+CLI=./ravel/target/release/ravel-cli
+MAPPING=ravel/benchmarks/clickbench/hits.mapping.toml
+
+# The bucket must be empty at this point. Ravel has no "drop tenant" command,
+# and re-loading into a bucket that already holds this tenant's objects would
+# measure a load on top of existing state and report a data size that includes
+# it. README.md states the empty-bucket precondition.
+./stop
+
+# Bulk Parquet import (ADR-0089). hits.parquet is delivered by the shared
+# lib/download-hits-parquet helper.
+# --batch-rows and --read-cursors are set for a 100M-row bulk import, not left
+# at the CLI defaults, and README.md records that as a disclosed configuration.
+#
+# One batch is one flush, which is one object per shard the batch's rows land
+# on, so --batch-rows is the object-count lever. At the default 10000 this load
+# produced roughly 94,500 objects for 100M rows, and per-object cost (LIST,
+# footer read, decode setup) is paid on every query: even COUNT(*) then exceeds
+# a 30s deadline. 40000 is the value docs/guides/clickbench.md documents for
+# this dataset.
+#
+# --read-cursors matters because hits.parquet is globally sorted by CounterID,
+# which is the mapping's sole resource_attribute. One sequential reader fills
+# each batch with a single CounterID, so the batch lands on one shard and one
+# core while the other shards idle. Matching cursors to shards spreads it.
+"$CLI" --store s3 load \
+    --parquet hits.parquet \
+    --tenant "$TENANT" \
+    --mapping "$MAPPING" \
+    --shards "$SHARDS" \
+    --batch-rows "${RAVEL_BATCH_ROWS:-40000}" \
+    --read-cursors "${RAVEL_READ_CURSORS:-$SHARDS}"
+
+# Seal the ingested hours into the catalog snapshot. Queries resolve against the
+# snapshot, so without this they would run against unfolded commit records,
+# which is not the state a steady-state deployment serves from.
+"$CLI" --store s3 catalog fold --tenant "$TENANT" --shards "$SHARDS" --signal logs
+
+./start
+for _ in $(seq 1 300); do
+    ./check >/dev/null 2>&1 && break
+    sleep 1
+done

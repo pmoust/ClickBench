@@ -1,0 +1,37 @@
+#!/bin/bash
+set -eu
+
+# Idempotent: if already serving, do nothing.
+if ./check >/dev/null 2>&1; then
+    exit 0
+fi
+
+: "${RAVEL_S3_BUCKET:?set RAVEL_S3_BUCKET (see README.md)}"
+: "${RAVEL_S3_REGION:?set RAVEL_S3_REGION}"
+: "${RAVEL_S3_ACCESS_KEY:?set RAVEL_S3_ACCESS_KEY}"
+: "${RAVEL_S3_SECRET_KEY:?set RAVEL_S3_SECRET_KEY}"
+export RAVEL_S3_BUCKET RAVEL_S3_REGION RAVEL_S3_ACCESS_KEY RAVEL_S3_SECRET_KEY
+export RAVEL_S3_ACCESS_KEY_ID="$RAVEL_S3_ACCESS_KEY"
+export RAVEL_S3_SECRET_ACCESS_KEY="$RAVEL_S3_SECRET_KEY"
+
+# --dev-insecure-tenant-header refuses to enable unless --listen-http binds a
+# loopback address, so this stays a single-node, local-only benchmark setup and
+# does not weaken the server's auth posture on any reachable interface.
+# --shards must match what ./load provisioned. The server defaults to 4, and a
+# mismatch is refused rather than silently answered over a subset of shards
+# (ADR-0050 section 5): "provisioning record ... records shard_count 8, but this
+# process is configured for 4: refusing to resolve over a subset of shards".
+# The engine's enforced query deadline defaults to 30s, and several ClickBench
+# statements are full scans that exceed it on this dataset. A query killed by
+# the harness's own timeout is not a measurement, so raise it well clear and let
+# the benchmark's own per-statement deadline govern. The flag is named for GC
+# because the same duration bounds the GC protection budget the timeout must fit
+# under; it is validated against the durable sys/gc value, which allows 1h.
+nohup ./ravel/target/release/ravel-server \
+    --store s3 \
+    --shards "${RAVEL_SHARDS:-8}" \
+    --gc-max-query-duration "${RAVEL_QUERY_DEADLINE:-600s}" \
+    --listen-http 127.0.0.1:9080 \
+    --dev-insecure-tenant-header \
+    > server.log 2>&1 &
+disown

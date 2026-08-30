@@ -1,0 +1,14 @@
+#!/bin/bash
+
+pid=$(pgrep -f 'ravel-server .*--listen-http' 2>/dev/null || true)
+if [ -n "$pid" ]; then
+    # Unquoted on purpose: pgrep -f can return several pids and kill takes them
+    # as separate arguments.
+    # shellcheck disable=SC2086
+    kill $pid 2>/dev/null || true
+    for _ in $(seq 1 30); do
+        pgrep -f 'ravel-server .*--listen-http' >/dev/null 2>&1 || exit 0
+        sleep 1
+    done
+    pkill -9 -f 'ravel-server .*--listen-http' 2>/dev/null || true
+fi
