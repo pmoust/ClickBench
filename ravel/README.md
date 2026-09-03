@@ -25,6 +25,13 @@ can read and write.
   load and CPU beside the timed statements. Measure in a bucket that holds
   nothing else.
 - `RAVEL_S3_REGION` (default `us-east-1`).
+- `RAVEL_CACHE_DIR` (default empty, meaning off): path for the read cache's
+  local-disk tier. Off by default because on the reference machine it is
+  slower than the store it caches. A `c6a.4xlarge` has no instance store, so
+  its disk is a 500 GB gp2 volume measuring 286 MB/s sequential, while this
+  server sustains 855 MB/s from S3 and peaks at 1,117 MB/s. Set it only where
+  the disk is genuinely faster: an instance-store box (NVMe at multiple GB/s)
+  or gp3 with provisioned throughput.
 - Credentials: **none are configured**. The server and the CLI run with
   `--s3-auth instance-role` and fetch short-lived credentials from IMDSv2, so
   the VM's instance profile must allow, for that bucket:

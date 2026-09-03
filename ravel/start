@@ -22,6 +22,17 @@ fi
 # deployment key file. This benchmark keeps no secret, so it pins the bucket to
 # the unkeyed (v1) derivation, which is what makes a tenant's prefix derivable
 # and ./data-size possible. It is written once and read on every later start.
+# Keep the previous run's log. This script truncates server.log, and the
+# driver restarts the server before every cold try, so a server that died
+# (an OOM kill, a refused bucket) loses its only evidence at the next start
+# unless the old log is moved aside first.
+[ -f server.log ] && mv -f server.log server.log.prev
+
+# The disk cache tier is opt-in and off by default; see RAVEL_CACHE_DIR in
+# ravel-env.sh for the measurement that says why.
+cache_args=()
+[ -n "${RAVEL_CACHE_DIR:-}" ] && cache_args=(--cache-dir "$RAVEL_CACHE_DIR")
+
 nohup "$RAVEL_SERVER" \
     --store s3 \
     --s3-auth instance-role \
@@ -29,6 +40,7 @@ nohup "$RAVEL_SERVER" \
     --shards "$RAVEL_SHARDS" \
     --listen-http "$RAVEL_HTTP" \
     --dev-insecure-tenant-header \
+    ${cache_args[@]+"${cache_args[@]}"} \
     > server.log 2>&1 &
 echo $! > "$RAVEL_PIDFILE"
 disown

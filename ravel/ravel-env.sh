@@ -34,6 +34,23 @@ export RAVEL_BIN_DIR
 export RAVEL_SERVER="$RAVEL_BIN_DIR/ravel-server"
 export RAVEL_CLI="$RAVEL_BIN_DIR/ravel-cli"
 
+# ADR-0046 read cache, local-disk tier. Empty (the default) means the RAM tier
+# only, which is what the published numbers use.
+#
+# Off by default because on the ClickBench reference machine it is a
+# pessimisation, measured rather than assumed. A c6a.4xlarge has no instance
+# store, so "local disk" is a 500 GB gp2 volume: 286 MB/s sequential here, and
+# gp2 caps at 250 MB/s sustained. The same server reads S3 at 855 MB/s
+# sustained, 1,117 MB/s peak. Caching an object to this volume therefore makes
+# the next read of it about 3x slower than fetching it again from S3.
+#
+# Set it to a path when the disk is genuinely faster than the store: an
+# instance-store box (i4i, c6ad, c7gd: NVMe at multiple GB/s) or a gp3 volume
+# with provisioned throughput. The disk tier is bounded by the same resolved
+# ceiling as the RAM tier, 26.3 GB on this host, so the whole 11.24 GB corpus
+# fits either way.
+export RAVEL_CACHE_DIR="${RAVEL_CACHE_DIR:-}"
+
 # Loopback only: --dev-insecure-tenant-header refuses to enable unless
 # --listen-http binds a loopback address, so this stays a single-node local
 # benchmark and does not weaken the server's auth posture on any reachable
