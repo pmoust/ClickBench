@@ -6,8 +6,12 @@
 # also matches any shell whose own argv happens to contain it — including the
 # ssh command of whoever is driving the run, which is a remarkably effective way
 # to kill your own session instead of the server.
+#
+# It also deliberately does not source ravel-env.sh. That file requires
+# RAVEL_S3_BUCKET and aborts the shell that sources it when the variable is
+# unset, which turned ./stop into a silent no-op that returned 1 and left the
+# server running. Stopping a process needs its pid and nothing else.
 set -u
-. ./ravel-env.sh 2>/dev/null || true
 PIDFILE="${RAVEL_PIDFILE:-server.pid}"
 
 [ -f "$PIDFILE" ] || exit 0
