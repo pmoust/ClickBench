@@ -1,0 +1,32 @@
+#!/bin/bash
+# Stops the server started by ./start, by pid.
+#
+# This deliberately does not pgrep for the server's command line. The driver
+# calls ./stop before every cold try, and a pattern like "ravel-server.*--listen"
+# also matches any shell whose own argv happens to contain it — including the
+# ssh command of whoever is driving the run, which is a remarkably effective way
+# to kill your own session instead of the server.
+set -u
+. ./ravel-env.sh 2>/dev/null || true
+PIDFILE="${RAVEL_PIDFILE:-server.pid}"
+
+[ -f "$PIDFILE" ] || exit 0
+pid=$(cat "$PIDFILE" 2>/dev/null || true)
+case "$pid" in
+    ''|*[!0-9]*) rm -f "$PIDFILE"; exit 0 ;;
+esac
+
+# Only signal it if it is still the server: a recycled pid belonging to
+# something else must not be killed.
+if ! grep -qs 'ravel-server' "/proc/$pid/cmdline" 2>/dev/null; then
+    rm -f "$PIDFILE"
+    exit 0
+fi
+
+kill "$pid" 2>/dev/null || true
+for _ in $(seq 1 30); do
+    kill -0 "$pid" 2>/dev/null || { rm -f "$PIDFILE"; exit 0; }
+    sleep 1
+done
+kill -9 "$pid" 2>/dev/null || true
+rm -f "$PIDFILE"

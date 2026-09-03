@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+. ./ravel-env.sh
+
+curl -sSf -X POST \
+    -H 'Content-Type: application/json' \
+    -H "x-ravel-tenant: $RAVEL_TENANT" \
+    --data-binary '{"query":"SELECT 1","start":0,"end":4102444800}' \
+    "http://${RAVEL_HTTP}/api/v1/sql" >/dev/null

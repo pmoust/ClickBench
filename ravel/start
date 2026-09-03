@@ -1,0 +1,27 @@
+#!/bin/bash
+set -eu
+. ./ravel-env.sh
+
+# Idempotent: if already serving, do nothing.
+if ./check >/dev/null 2>&1; then
+    exit 0
+fi
+
+# No performance flags. Since Ravel 0.13.0 the server resolves its query
+# budgets at startup: fetch concurrency from the core count, the read caches and
+# the two SQL memory ceilings from usable memory (MemTotal, capped by the cgroup
+# limit in a container), with a fixed segment cap and engine deadline. The
+# resolved values and their sources are on the "performance default resolved"
+# lines in server.log, which is what a published result should record.
+#
+# --shards is not a budget: it must match what ./load provisioned, or the server
+# refuses to resolve rather than answering over a subset of shards.
+nohup "$RAVEL_SERVER" \
+    --store s3 \
+    --s3-auth instance-role \
+    --shards "$RAVEL_SHARDS" \
+    --listen-http "$RAVEL_HTTP" \
+    --dev-insecure-tenant-header \
+    > server.log 2>&1 &
+echo $! > "$RAVEL_PIDFILE"
+disown

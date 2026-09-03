@@ -1,0 +1,21 @@
+#!/bin/bash
+# Ravel keeps every durable byte in object storage, so the VM's local disk
+# footprint is not the data size. This sums the bytes stored under this
+# tenant's own prefix in the bucket: data objects, commit records, manifests
+# and catalog snapshots, which is the tenant's whole durable footprint.
+set -eu
+. ./ravel-env.sh
+
+# The tenant id is hashed under the bucket's pinned scheme, so the prefix is not
+# derivable from the id alone; ask the catalog for it.
+hash=$("$RAVEL_CLI" --store s3 --s3-auth instance-role catalog inspect \
+    --tenant "$RAVEL_TENANT" --signal logs 2>/dev/null \
+    | grep -oE 'tenant_hash: [0-9a-f]+' | head -1 | awk '{print $2}')
+
+if [ -z "$hash" ]; then
+    echo "data-size: could not resolve the tenant hash for '$RAVEL_TENANT'" >&2
+    exit 1
+fi
+
+aws s3 ls --summarize --recursive "s3://${RAVEL_S3_BUCKET}/t/${hash}/" \
+    | awk '/Total Size:/ { print $3 }'
