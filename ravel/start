@@ -16,9 +16,16 @@ fi
 #
 # --shards is not a budget: it must match what ./load provisioned, or the server
 # refuses to resolve rather than answering over a subset of shards.
+# --tenant-hash-unkeyed is a scheme choice, not a performance flag. A fresh
+# bucket has no sys/tenancy marker and the server bootstraps one on its first
+# start; the default is the keyed derivation, which refuses to start without a
+# deployment key file. This benchmark keeps no secret, so it pins the bucket to
+# the unkeyed (v1) derivation, which is what makes a tenant's prefix derivable
+# and ./data-size possible. It is written once and read on every later start.
 nohup "$RAVEL_SERVER" \
     --store s3 \
     --s3-auth instance-role \
+    --tenant-hash-unkeyed \
     --shards "$RAVEL_SHARDS" \
     --listen-http "$RAVEL_HTTP" \
     --dev-insecure-tenant-header \

@@ -13,6 +13,11 @@ Unlike the other S3-using entries in this repository, which read the public
 `hits` dataset in place, Ravel *writes* its own objects, so it needs a bucket it
 can read and write.
 
+- The bucket needs no preparation. `./install` qualifies it once, and the first
+  `./start` bootstraps its `sys/tenancy` marker to the unkeyed (v1) tenant-hash
+  derivation. The server's own default is the keyed derivation, which refuses to
+  start without a deployment key file; this benchmark holds no secret and needs
+  a derivable prefix for `./data-size`, so `./start` pins it unkeyed.
 - `RAVEL_S3_BUCKET` (required): a bucket dedicated to this benchmark. Everything
   is written under a `t/<tenant hash>/` prefix, so a shared bucket is correct,
   but it is not a fair one: the server's startup cache warmup and its background
