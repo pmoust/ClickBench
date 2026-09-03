@@ -13,8 +13,12 @@ Unlike the other S3-using entries in this repository, which read the public
 `hits` dataset in place, Ravel *writes* its own objects, so it needs a bucket it
 can read and write.
 
-- `RAVEL_S3_BUCKET` (required): the bucket to use. Everything is written under
-  a `t/<tenant hash>/` prefix, so a shared bucket is fine.
+- `RAVEL_S3_BUCKET` (required): a bucket dedicated to this benchmark. Everything
+  is written under a `t/<tenant hash>/` prefix, so a shared bucket is correct,
+  but it is not a fair one: the server's startup cache warmup and its background
+  catalog fold cover every tenant in the bucket, which spends memory during the
+  load and CPU beside the timed statements. Measure in a bucket that holds
+  nothing else.
 - `RAVEL_S3_REGION` (default `us-east-1`).
 - Credentials: **none are configured**. The server and the CLI run with
   `--s3-auth instance-role` and fetch short-lived credentials from IMDSv2, so

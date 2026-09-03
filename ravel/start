@@ -25,3 +25,21 @@ nohup "$RAVEL_SERVER" \
     > server.log 2>&1 &
 echo $! > "$RAVEL_PIDFILE"
 disown
+
+# Wait for it to serve, so that this script returning means the next one can use
+# the server. The listener opens after a startup cache warmup, about ten seconds
+# in, and the driver is not the only caller: ./load restarts the server itself.
+for _ in $(seq 1 180); do
+    if ./check >/dev/null 2>&1; then
+        exit 0
+    fi
+    if ! kill -0 "$(cat "$RAVEL_PIDFILE")" 2>/dev/null; then
+        echo "start: the server exited during startup, last lines of server.log:" >&2
+        tail -n 20 server.log >&2
+        exit 1
+    fi
+    sleep 1
+done
+
+echo "start: the server did not begin serving within 180 seconds" >&2
+exit 1

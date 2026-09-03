@@ -13,6 +13,15 @@ MAPPING="${RAVEL_MAPPING:-hits.mapping.toml}"
 [ -f "$PARQUET" ] || { echo "load: $PARQUET not found (the driver's download step should have fetched it)" >&2; exit 1; }
 [ -f "$MAPPING" ] || { echo "load: $MAPPING not found" >&2; exit 1; }
 
+# `ravel-cli load` drives the ingest router in-process and writes to object
+# storage itself, so the server takes no part in the load. A server left running
+# through it does no work for the load while its startup cache warmup and its
+# background catalog folds compete for the same memory the loader needs. That is
+# not a small effect: on a 32 GB box the read cache alone resolves to a 26.3 GB
+# ceiling and the kernel OOM-killed a 24.1 GB ravel-server six seconds before the
+# last row landed (NOFireAI/ravel#1170). Stop it here, start it again at the end.
+./stop
+
 # Declare the typed attribute columns before the first row lands. The mapping
 # names each hits column and its type; declaring them lets ingest stamp exact
 # per-column statistics on the commit records, which is what lets aggregates be
@@ -37,3 +46,7 @@ MAPPING="${RAVEL_MAPPING:-hits.mapping.toml}"
     --target-bytes 1
 
 sync
+
+# Serving again for ./check and the query phase. ./start waits for the listener,
+# so this returns only once the server answers.
+./start
