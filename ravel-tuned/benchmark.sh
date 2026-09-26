@@ -23,9 +23,5 @@ export BENCH_CHECK_TIMEOUT="${BENCH_CHECK_TIMEOUT:-600}"
 # 30 GB machine (about 8.2 GB) to 12 GiB, which lets the widest GROUP BY in the
 # set (q33) complete instead of being refused.
 export RAVEL_TUNED_ARGS="${RAVEL_TUNED_ARGS:---sql-max-query-bytes 12884901888}"
-# The read cache's local-disk tier. It survives the driver's restart before
-# each query, so a cold run can reuse the bytes earlier queries fetched.
-export RAVEL_CACHE_DIR="${RAVEL_CACHE_DIR:-$PWD/cache}"
-mkdir -p "$RAVEL_CACHE_DIR"
 
 exec ../lib/benchmark-common.sh
