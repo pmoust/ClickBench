@@ -47,6 +47,28 @@ MAPPING="${RAVEL_MAPPING:-hits.mapping.toml}"
 
 sync
 
+# Experiment only (not part of the stock entry): compact the loaded tenant into
+# L1 parts before querying, to measure the compacted layout. The tenant is
+# quiescent once the load has returned, which is the case the flush-lifetime
+# override is documented for. Object counts before and after go to the log.
+if [ "${RAVEL_COMPACT_AFTER_LOAD:-0}" = 1 ]; then
+    # Superseded L0 inputs stay in the bucket until GC, so count L0 and L1
+    # data objects separately, with their bytes.
+    count_objects() {
+        aws s3 ls --recursive "s3://$RAVEL_S3_BUCKET/" | awk '
+            $4 ~ /\/l0\// { l0++; l0b += $3 }
+            $4 ~ /\/l1\// { l1++; l1b += $3 }
+            END { printf "l0=%d (%d bytes) l1=%d (%d bytes)", l0, l0b, l1, l1b }'
+    }
+    echo "Objects before compaction: $(count_objects)"
+    "$RAVEL_CLI" --store s3 --s3-auth static maintain compact-tenant \
+        --tenant "$RAVEL_TENANT" --signal logs --shards "$RAVEL_SHARDS" \
+        --max-flush-lifetime 0s \
+        --bucket-concurrency "${RAVEL_COMPACT_CONCURRENCY:-1}"
+    echo "Objects after compaction: $(count_objects)"
+    sync
+fi
+
 # Serving again for ./check and the query phase. ./start waits for the listener,
 # so this returns only once the server answers.
 ./start
