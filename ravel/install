@@ -161,6 +161,19 @@ if [ "$local_store" = yes ]; then
     ./rustfs-start
 fi
 
+# An external store gets no RustFS credentials file, but the server still
+# needs its audit tokenization key. Generate it the same way, once.
+if [ "$local_store" = no ]; then
+    mkdir -p "$RUSTFS_DIR"
+    if ! grep -qs '^RAVEL_AUDIT_TOKEN_KEY=' "$RUSTFS_DIR/credentials.env"; then
+        ( umask 077
+          printf 'RAVEL_AUDIT_TOKEN_KEY=%s\n' \
+              "$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')" \
+              >> "$RUSTFS_DIR/credentials.env" )
+    fi
+    . ./ravel-env.sh
+fi
+
 # The bucket. Everything Ravel writes lands under a t/<tenant hash>/ prefix in
 # it, so an existing bucket is fine; measure in one that holds nothing else.
 if ! aws s3api head-bucket --bucket "$RAVEL_S3_BUCKET" >/dev/null 2>&1; then
@@ -171,4 +184,4 @@ fi
 # against a store that has never been qualified. It lives here rather than in
 # ./load because it qualifies the bucket rather than loading the dataset, and
 # ./load's wall clock is the reported Load time.
-"$RAVEL_CLI" --store s3 --s3-auth static store qualify
+"$RAVEL_CLI" --store s3 --s3-auth "$RAVEL_S3_AUTH" store qualify

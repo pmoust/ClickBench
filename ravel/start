@@ -55,8 +55,10 @@ ln -sfn "$log" server.log
 
 # The store must be up before the server: a RustFS that died between queries
 # would otherwise turn every later statement into an error. No-op when it is
-# already serving.
-./rustfs-start
+# already serving. An external store is not ours to start.
+case "$RAVEL_S3_ENDPOINT" in
+    http://127.0.0.1:*|http://localhost:*) ./rustfs-start ;;
+esac
 
 # Each in-flight object-store request holds a socket, and at startup the
 # server has exited with EMFILE under the common 1024 soft limit. Raise the
@@ -76,7 +78,7 @@ tuned_args=(${RAVEL_TUNED_ARGS:-})
 
 nohup "$RAVEL_SERVER" \
     --store s3 \
-    --s3-auth static \
+    --s3-auth "$RAVEL_S3_AUTH" \
     --tenant-hash-unkeyed \
     --shards "$RAVEL_SHARDS" \
     --listen-http "$RAVEL_HTTP" \
