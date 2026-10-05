@@ -43,6 +43,7 @@ MAPPING="${RAVEL_MAPPING:-hits.mapping.toml}"
     --shards "$RAVEL_SHARDS" \
     --read-cursors "${RAVEL_READ_CURSORS:-16}" \
     --batch-rows "${RAVEL_BATCH_ROWS:-150000}" \
+    ${RAVEL_PIPELINE_DEPTH:+--pipeline-depth "$RAVEL_PIPELINE_DEPTH"} \
     --target-bytes 1
 
 sync
