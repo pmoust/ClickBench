@@ -74,6 +74,47 @@ cache_args=()
 # shellcheck disable=SC2206
 tuned_args=(${RAVEL_TUNED_ARGS:-})
 
+# Raising --fetch-concurrency raises the in-flight fetch reservation, and the
+# derived per-query memory pool shrinks with it: at 256 permits the widest
+# GROUP BY (q33) is refused on a machine where the stock pool holds it. With
+# RAVEL_HOLD_STOCK_QUERY_BYTES=1 a tuned start keeps the pool at what the stock
+# server derives on this machine: it starts the server once without the tuned
+# flags, reads the resolved sql_max_query_bytes from its log, and passes that
+# value explicitly from then on. The value depends only on the machine, so it is
+# read once and kept in stock-query-bytes.
+if [ "${#tuned_args[@]}" -gt 0 ] && [ "${RAVEL_HOLD_STOCK_QUERY_BYTES:-0}" = 1 ]; then
+    if [ ! -s stock-query-bytes ]; then
+        probe_log="server.stock-probe.log"
+        nohup "$RAVEL_SERVER" \
+            --store s3 \
+            --s3-auth static \
+            --tenant-hash-unkeyed \
+            --shards "$RAVEL_SHARDS" \
+            --listen-http "$RAVEL_HTTP" \
+            --dev-insecure-tenant-header \
+            > "$probe_log" 2>&1 &
+        echo "$!" > "$RAVEL_PIDFILE"
+        disown
+        for _ in $(seq 1 180); do
+            ./check >/dev/null 2>&1 && break
+            sleep 1
+        done
+        held=$(sed 's/\x1b\[[0-9;]*m//g' "$probe_log" | grep 'performance default resolved' | grep 'sql_max_query_bytes' \
+            | sed -nE 's/.*"?value"?[=:] *"?([0-9]+).*/\1/p' | head -n 1)
+        ./stop
+        if [ -z "$held" ]; then
+            echo "start: could not read the stock sql_max_query_bytes from $probe_log" >&2
+            exit 1
+        fi
+        echo "$held" > stock-query-bytes
+        for _ in $(seq 1 30); do
+            ports_busy || break
+            sleep 1
+        done
+    fi
+    tuned_args+=(--sql-max-query-bytes "$(cat stock-query-bytes)")
+fi
+
 nohup "$RAVEL_SERVER" \
     --store s3 \
     --s3-auth static \
