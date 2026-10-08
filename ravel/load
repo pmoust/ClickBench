@@ -45,6 +45,7 @@ MAPPING="${RAVEL_MAPPING:-hits.mapping.toml}"
     --batch-rows "${RAVEL_BATCH_ROWS:-150000}" \
     ${RAVEL_PIPELINE_DEPTH:+--pipeline-depth "$RAVEL_PIPELINE_DEPTH"} \
     ${RAVEL_LOAD_MEMORY_BYTES:+--load-memory-bytes "$RAVEL_LOAD_MEMORY_BYTES"} \
+    ${RAVEL_MAX_FLUSH_DELAY:+--max-flush-delay "$RAVEL_MAX_FLUSH_DELAY"} \
     --target-bytes "${RAVEL_TARGET_BYTES:-1}"
 
 sync
