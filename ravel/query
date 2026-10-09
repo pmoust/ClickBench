@@ -21,6 +21,12 @@ out=$(curl -sS --fail-with-body -X POST \
     "http://${RAVEL_HTTP}/api/v1/sql") && exit_code=0 || exit_code=$?
 t2=$(date +%s%3N)
 
+if [ -n "${RAVEL_QUERY_LOG:-}" ]; then
+    qn=$(grep -nxF -- "$query" queries.sql | head -n 1 | cut -d: -f1)
+    printf '%s q%s exit=%s ms=%s %s\n' "$t1" "${qn:-?}" "$exit_code" "$((t2 - t1))" \
+        "$( [ "$exit_code" -ne 0 ] && printf '%s' "$out" | tr '\n' ' ' | cut -c1-300 )" >> "$RAVEL_QUERY_LOG"
+fi
+
 if [ "$exit_code" -ne 0 ]; then
     printf '%s\n' "$out" >&2
     exit "$exit_code"
