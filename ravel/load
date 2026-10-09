@@ -26,7 +26,7 @@ MAPPING="${RAVEL_MAPPING:-hits.mapping.toml}"
 # names each hits column and its type; declaring them lets ingest stamp exact
 # per-column statistics on the commit records, which is what lets aggregates be
 # answered without reading data objects.
-"$RAVEL_CLI" --store s3 --s3-auth static \
+"$RAVEL_CLI" --store s3 --s3-auth "$RAVEL_S3_AUTH" \
     typed-attr-column set "$RAVEL_TENANT" --from-mapping "$MAPPING"
 
 # Load geometry. Small batches merge into large stored objects: a shard's
@@ -56,7 +56,7 @@ fi
 load_budget="${RAVEL_LOAD_MEMORY_BYTES-$tier_budget}"
 echo "load: MemTotal ${mem_kb} kB, pipeline depth ${RAVEL_PIPELINE_DEPTH:-$tier_depth}, read cursors ${RAVEL_READ_CURSORS:-$tier_cursors}, memory budget ${load_budget:-derived}" >&2
 
-"$RAVEL_CLI" --store s3 --s3-auth static load \
+"$RAVEL_CLI" --store s3 --s3-auth "$RAVEL_S3_AUTH" load \
     --parquet "$PARQUET" \
     --tenant "$RAVEL_TENANT" \
     --mapping "$MAPPING" \

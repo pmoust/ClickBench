@@ -171,4 +171,4 @@ fi
 # against a store that has never been qualified. It lives here rather than in
 # ./load because it qualifies the bucket rather than loading the dataset, and
 # ./load's wall clock is the reported Load time.
-"$RAVEL_CLI" --store s3 --s3-auth static store qualify
+"$RAVEL_CLI" --store s3 --s3-auth "$RAVEL_S3_AUTH" store qualify

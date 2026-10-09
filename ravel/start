@@ -76,7 +76,7 @@ tuned_args=(${RAVEL_TUNED_ARGS:-})
 
 nohup "$RAVEL_SERVER" \
     --store s3 \
-    --s3-auth static \
+    --s3-auth "$RAVEL_S3_AUTH" \
     --tenant-hash-unkeyed \
     --shards "$RAVEL_SHARDS" \
     --listen-http "$RAVEL_HTTP" \

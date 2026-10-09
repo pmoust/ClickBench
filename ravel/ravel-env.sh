@@ -23,7 +23,9 @@ export RUSTFS_DIR="${RUSTFS_DIR:-$PWD/rustfs}"
 # process argument list. The server and the CLI take RAVEL_S3_ACCESS_KEY and
 # RAVEL_S3_SECRET_KEY; the AWS CLI (bucket provisioning and ./data-size) takes
 # its own names plus the endpoint.
-export RAVEL_S3_AUTH=static
+# RAVEL_S3_AUTH=instance-role uses the EC2 instance role instead of keys, for a
+# run against a real bucket from an instance that has one.
+export RAVEL_S3_AUTH="${RAVEL_S3_AUTH:-static}"
 if [ -z "${RAVEL_S3_ACCESS_KEY:-}" ] && [ -f "$RUSTFS_DIR/credentials.env" ]; then
     # shellcheck disable=SC1091
     . "$RUSTFS_DIR/credentials.env"
@@ -37,8 +39,12 @@ if [ -z "${RAVEL_AUDIT_TOKEN_KEY:-}" ] && [ -f "$RUSTFS_DIR/credentials.env" ]; 
 fi
 export RAVEL_AUDIT_TOKEN_KEY="${RAVEL_AUDIT_TOKEN_KEY:-}"
 unset RAVEL_S3_SESSION_TOKEN AWS_SESSION_TOKEN
-export AWS_ACCESS_KEY_ID="${RAVEL_S3_ACCESS_KEY:-}"
-export AWS_SECRET_ACCESS_KEY="${RAVEL_S3_SECRET_KEY:-}"
+if [ -n "${RAVEL_S3_ACCESS_KEY:-}" ]; then
+    export AWS_ACCESS_KEY_ID="$RAVEL_S3_ACCESS_KEY"
+    export AWS_SECRET_ACCESS_KEY="${RAVEL_S3_SECRET_KEY:-}"
+else
+    unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+fi
 export AWS_ENDPOINT_URL="$RAVEL_S3_ENDPOINT"
 export AWS_DEFAULT_REGION="$RAVEL_S3_REGION"
 
