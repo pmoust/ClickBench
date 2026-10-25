@@ -9,6 +9,13 @@
 set -eu
 . ./ravel-env.sh
 
+# A non-loopback endpoint is an external store the operator provisioned (a
+# real bucket with instance-role auth); there is no RustFS to start.
+case "$RAVEL_S3_ENDPOINT" in
+    http://127.0.0.1:*|http://localhost:*) ;;
+    *) exit 0 ;;
+esac
+
 # Unauthenticated, so a 200 cannot be confused with a credential problem.
 health="${RAVEL_S3_ENDPOINT}/health"
 if curl -fsS -o /dev/null "$health" 2>/dev/null; then
