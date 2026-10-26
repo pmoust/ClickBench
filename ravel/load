@@ -29,6 +29,12 @@ MAPPING="${RAVEL_MAPPING:-hits.mapping.toml}"
 "$RAVEL_CLI" --store s3 --s3-auth static \
     typed-attr-column set "$RAVEL_TENANT" --from-mapping "$MAPPING"
 
+# Bloom filters only on text columns (body, severity). The hits table has
+# none, so every string column is left out of BLOOM coverage and each block
+# carries the minimum filter. No statement here builds a bloom predicate.
+"$RAVEL_CLI" --store s3 --s3-auth static \
+    bloom-scope set --tenant "$RAVEL_TENANT" --scope text --readers-rolled-out
+
 # Load geometry. Small batches merge into large stored objects: a shard's
 # buffer accumulates batches until its estimated uncompressed content reaches
 # --target-bytes, and on this dataset a stored object holds about 1/74 of that
