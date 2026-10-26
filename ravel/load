@@ -75,6 +75,7 @@ echo "load: MemTotal ${mem_kb} kB, pipeline depth ${RAVEL_PIPELINE_DEPTH:-$tier_
     --shards "$RAVEL_SHARDS" \
     --read-cursors "${RAVEL_READ_CURSORS:-$tier_cursors}" \
     --batch-rows "${RAVEL_BATCH_ROWS:-100000}" \
+    --zstd-level "${RAVEL_ZSTD_LEVEL:-9}" \
     --pipeline-depth "${RAVEL_PIPELINE_DEPTH:-$tier_depth}" \
     ${load_budget:+--load-memory-bytes "$load_budget"} \
     --max-flush-delay "${RAVEL_MAX_FLUSH_DELAY:-$tier_delay}" \
